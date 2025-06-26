@@ -1,0 +1,86 @@
+.viewer-wrapper {
+  position: relative;
+  width: 100%;
+}
+#viewerContainer {
+  height: 50vh;
+  min-height: 50vh;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  overflow: hidden;
+}
+
+.osd-viewer {
+  width: 100%;
+  height: 100%;
+}
+
+.annotation-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.annotation {
+  position: absolute;
+  box-sizing: border-box;
+
+  &.rectangle {
+    border: 1px solid red;
+    background-color: transparent;
+  }
+
+  &.circle {
+    transition: none; /* Remove any transitions that might affect drawing */
+    box-sizing: border-box; /* Ensure border width is included in dimensions */
+  }
+
+  &.temp {
+    opacity: 0.7;
+  }
+
+  &.line {
+    transform-origin: left center;
+    height: 1px; // Default height, will be overridden by strokeWidth
+  }
+
+  &.freehand {
+    transform-origin: left center;
+    height: 1px; // Default height, will be overridden by strokeWidth
+  }
+}
+
+/* Add to your component's CSS */
+#annotation_popUp {
+  position: absolute;
+  z-index: 1000;
+  background: white;
+  padding: 15px;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.annotaionPopUp_inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popUpBtn {
+  padding: 5px 10px;
+  background: #0085d5;
+  color: white;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#annotationText {
+  width: 100%;
+  min-height: 80px;
+  margin-bottom: 10px;
+}

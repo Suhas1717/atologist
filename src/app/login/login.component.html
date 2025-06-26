@@ -1,0 +1,155 @@
+<div class="row" id="login">
+  <div class="col-md-5 col-lg-5 col-xs-12 col-sm-12">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <img src="assets/images/atologist.bmp" alt="atologist">
+      </div>
+    </div>
+  </div>
+  <div class="col-md-7 col-lg-7 col-xs-12 col-sm-12 align-content">
+    <div class="py-2">Already have an account? <span class="primary-clr link">Sign In</span></div>
+  </div>
+  <div class="col-xs-12 col-lg-6 col-md-7 p-md-4">
+
+    <div class="d-flex justify-content-center py-3 px-2 p-sm-0">
+      <form [formGroup]="loginForm" (ngSubmit)="submitForm()" novalidate>
+        <h4 class="my-2 col-12">Welcome to Atologist Infotech</h4>
+        <div class="my-2">Create your account</div>
+        <div class="my-2">
+          <img class="link" src="assets/images/google.png" alt="google">
+        </div>
+        <h6 class="my-2">OR</h6>
+        <div class="row my-1">
+          <div class="col-md-6 col-xs-6 col-lg-6 col-sm-6">
+            <label for="firstname" class="my-1">First Name</label>
+            <input type="text" formControlName="firstname" class="form-control grey rounded-0" id="firstname"
+              placeholder="Enter your first name">
+            <div *ngIf="f['firstname'].invalid && (f['firstname'].dirty || f['firstname'].touched)" class="text-danger">
+              <div *ngIf="f['firstname'].errors">
+                <div *ngIf="f['firstname'].errors['required']">
+                  First Name is required.
+                </div>
+                <div *ngIf="f['firstname'].errors['minlength']">
+                  First Name must be at least 2 characters long.
+                </div>
+                <div *ngIf="f['firstname'].errors['maxlength']">
+                  First Name cannot be more than 50 characters long.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-xs-6 col-lg-6 col-sm-6">
+            <label for="lastName" class="my-1">Last Name</label>
+            <input type="text" formControlName="lastname" class="form-control grey rounded-0" id="lastName"
+              placeholder="Enter your last name">
+            <div *ngIf="f['lastname'].invalid && (f['lastname'].dirty || f['lastname'].touched)" class="text-danger">
+              <div *ngIf="f['lastname'].errors">
+                <div *ngIf="f['lastname'].errors['required']">
+                  Last Name is required.
+                </div>
+                <div *ngIf="f['lastname'].errors['minlength']">
+                  Last Name must be at least 2 characters long.
+                </div>
+                <div *ngIf="f['lastname'].errors['maxlength']">
+                  Last Name cannot be more than 50 characters long.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group my-1">
+          <label for="email" class="my-1">Email</label>
+          <input type="email" formControlName="email" class="form-control grey rounded-0" id="email"
+            placeholder="Enter your email">
+          <div *ngIf="f['email'].invalid && (f['email'].dirty || f['email'].touched)" class="text-danger">
+            <div *ngIf="f['email'].errors">
+              <div *ngIf="f['email'].errors['required']">Please enter a valid email address.</div>
+              <div *ngIf="f['email'].errors['email']">Email is invalid</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group my-1">
+          <label for="Mobile" class="my-1">Mobile</label>
+          <input type="text" formControlName="mobile" class="form-control grey rounded-0" id="mobile"
+            placeholder="Enter your mobile number">
+          <div *ngIf="f['mobile'].invalid && (f['mobile'].dirty || f['mobile'].touched)" class="text-danger">
+            <div *ngIf="f['mobile'].errors">
+              <div *ngIf="f['mobile'].errors['required']">
+                Last Name is required.
+              </div>
+              <div *ngIf="f['mobile'].errors['minlength']">
+                Mobile number must be at least 10 digits long.
+              </div>
+              <div *ngIf="f['mobile'].errors['maxlength']">
+                Mobile number cannot be more than 15 digits long.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group my-1">
+          <label for="password" class="my-1">Password</label>
+          <input formControlName="encryptpassword" type="password" class="form-control grey rounded-0" id="password"
+            placeholder="Enter your password">
+          <div *ngIf="f['encryptpassword'].invalid && (f['encryptpassword'].dirty || f['encryptpassword'].touched)"
+            class="text-danger mt-1">
+            <div *ngIf="f['encryptpassword'].errors">
+              <div *ngIf="f['encryptpassword'].errors['required']">Password is required</div>
+              <div *ngIf="f['encryptpassword'].errors['minlength']">Password must be at least 8 characters</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group my-1">
+          <label for="dob" class="my-1">DOB</label>
+          <input formControlName="dob" type="date" class="form-control grey rounded-0" id="dob"
+            placeholder="Enter your date of birth">
+          <div *ngIf="f['dob'].invalid && (f['dob'].dirty || f['dob'].touched)" class="text-danger">
+            <div *ngIf="f['dob'].errors">
+              <div *ngIf="f['dob'].errors['required']">
+                Date of Birth is required.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group my-1 d-flex">
+          <div class="form-check mx-1">
+            <input formControlName="terms" class="form-check-input border border-dark rounded-0" type="checkbox"
+              id="gridCheck">
+            <label class="form-check-label " for="gridCheck">
+              Terms of Service
+            </label>
+            <div *ngIf="f['terms'].invalid && (f['terms'].dirty || f['terms'].touched)" class="text-danger">
+              <div *ngIf="f['terms'].errors">
+                <div *ngIf="f['terms'].errors['required']">
+                  You must agree to the Terms and Conditions.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-check mx-1">
+            <input formControlName="privacy" class="form-check-input border border-dark rounded-0" type="checkbox"
+              id="gridCheck">
+            <label class="form-check-label " for="gridCheck">
+              Privacy Policy
+            </label>
+            <div *ngIf="f['privacy'].invalid && (f['privacy'].dirty || f['privacy'].touched)" class="text-danger">
+              <div *ngIf="f['privacy'].errors">
+                <div *ngIf="f['privacy'].errors['required']">
+                  You must agree to the Terms and Conditions.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn submit-btn rounded-0">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <div
+    class="col-xs-12 col-lg-6 col-md-5 d-flex  p-md-4 align-items-center justify-content-center image-container login-img">
+    <img src="assets/images/login_img.png" alt="peoples" class="login-img">
+  </div>
+  <div class="messageBox">
+    <img src="assets/images/message.png" alt="">
+  </div>
+</div>

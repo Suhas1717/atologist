@@ -1,0 +1,68 @@
+<div class="annotator-container">
+  <div class="toolbar">
+    <button (click)="setTool('select')" [class.active]="currentTool === 'select'">
+      <span>Select</span>
+    </button>
+    <button (click)="setTool('rectangle')" [class.active]="currentTool === 'rectangle'">
+      <span>Rectangle</span>
+    </button>
+    <button (click)="setTool('circle')" [class.active]="currentTool === 'circle'">
+      <span>Circle</span>
+    </button>
+    <button (click)="setTool('line')" [class.active]="currentTool === 'line'">
+      <span>Line</span>
+    </button>
+    <button (click)="setTool('freehand')" [class.active]="currentTool === 'freehand'">
+      <span>Freehand</span>
+    </button>
+
+    <div class="separator"></div>
+
+    <div class="color-picker">
+      <label>Color:</label>
+      <input type="color" [(ngModel)]="color">
+    </div>
+
+    <div class="stroke-width">
+      <label>Width:</label>
+      <input type="range" min="1" max="20" [(ngModel)]="strokeWidth">
+      <span>{{strokeWidth}}px</span>
+    </div>
+
+    <div class="separator"></div>
+
+    <button (click)="removeLastAnnotation()">
+      <span>Undo</span>
+    </button>
+
+    <button (click)="clearAnnotations()">
+      <span>Clear All</span>
+    </button>
+
+    <button (click)="resetView()">
+      <span>Reset View</span>
+    </button>
+  </div>
+
+
+  <div class="annotator-container">
+    <div class="viewer-wrapper">
+      <!-- <canvas #annotationCanvas class="annotation-layer"></canvas> -->
+      <div #annotationLayer class="annotation-layer" (mousedown)="onPointerDown($event)" cdkDragBoundary=".osd-viewer"
+        (mousemove)="onPointerMove($event)" (mouseup)="onPointerUp($event)" (mouseleave)="onPointerUp($event)"
+        (touchstart)="onPointerDown($event)" (touchmove)="onPointerMove($event)" (touchend)="onPointerUp($event)"></div>
+
+      <div #viewerContainer id="viewerContainer" class="osd-viewer"></div>
+
+    </div>
+    <div id="annotation_popUp" *ngIf="annotationBoxVisibility"
+      style="position: absolute; z-index: 1000; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+      <div class="annotaionPopUp_inner">
+        <textarea [(ngModel)]="annotationText" class="w-100" id="annotationText"></textarea>
+        <div class="popUpBtn" (click)="saveAnnotation()">Save</div>
+        <div class="popUpBtn" (click)="cancelAnnotation()">Cancel</div>
+        <div class="popUpBtn" (click)="deleteAnnotation()" *ngIf="currentAnnotation.action === 'update'">Delete</div>
+      </div>
+    </div>
+
+  </div>
