@@ -53,15 +53,14 @@
         (touchstart)="onPointerDown($event)" (touchmove)="onPointerMove($event)" (touchend)="onPointerUp($event)"></div>
 
       <div #viewerContainer id="viewerContainer" class="osd-viewer"></div>
-
-    </div>
-    <div id="annotation_popUp" *ngIf="annotationBoxVisibility"
-      style="position: absolute; z-index: 1000; top: 50%; left: 50%; transform: translate(-50%, -50%);">
-      <div class="annotaionPopUp_inner">
-        <textarea [(ngModel)]="annotationText" class="w-100" id="annotationText"></textarea>
-        <div class="popUpBtn" (click)="saveAnnotation()">Save</div>
-        <div class="popUpBtn" (click)="cancelAnnotation()">Cancel</div>
-        <div class="popUpBtn" (click)="deleteAnnotation()" *ngIf="currentAnnotation.action === 'update'">Delete</div>
+      <div id="annotation-popup" *ngIf="annotationBoxVisibility" cdkDrag cdkDragBoundary=".example-boundary">
+        <div class="annotaionPopUp_inner">
+          <textarea [(ngModel)]="annotationText" class="w-100" id="annotationText"></textarea>
+          <div class="popUpBtn" (click)="saveAnnotation()">Save</div>
+          <div class="popUpBtn" (click)="cancelAnnotation()">Cancel</div>
+          <div class="popUpBtn" (click)="deleteAnnotation()" *ngIf="currentAnnotation.action === 'update'">Delete
+          </div>
+        </div>
       </div>
     </div>
 

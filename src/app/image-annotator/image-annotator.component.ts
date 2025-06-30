@@ -46,12 +46,13 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
       action: 'add'
     };
   shape: any;
-  currentTool = '';
+  currentTool = 'hand';
   viewerEventsSubscription: Subscription | undefined
 
   constructor(private svgService: SvgService, private cdr: ChangeDetectorRef) {
   }
   ngOnDestroy(): void {
+    document.removeEventListener('click', this.handleDocumentClick);
 
     if (this.viewerEventsSubscription) {
       this.viewerEventsSubscription.unsubscribe();
@@ -62,6 +63,8 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
       this.viewer.destroy();
       this.viewer = null;
     }
+
+
   }
 
 
@@ -75,6 +78,10 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
       return;
     }
     this.initializeViewer();
+    this.setupSVGLayer();
+
+    document.addEventListener('click', this.handleDocumentClick);
+
     // this.setupContainer();
 
   }
@@ -128,11 +135,18 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
       constrainDuringPan: true,
       gestureSettingsTouch: {
         clickToZoom: false,
-        scrollToZoom: false,
-        pinchToZoom: true,
+        dblClickToZoom: false,    // Disable double-tap zoom
+        pinchToZoom: true,        // Keep pinch-to-zoom if desired
         flickEnabled: false
       },
-
+      gestureSettingsMouse: {
+        clickToZoom: false,       // Disable single-click zoom
+        dblClickToZoom: false,    // Disable double-click zoom
+        pinchToZoom: false,
+        flickEnabled: false
+      },
+      dblClickDistThreshold: 0,   // Disable double-click detection
+      dblClickTimeThreshold: 0
     })
 
     // Wait for viewer to be ready before adding handlers
@@ -267,7 +281,7 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
     } else if (this.currentTool === 'rectangle') {
       this.createRectangle();
     } else if (this.currentTool === 'circle') {
-      this.createCircle();
+      this.createCircle(x, y);
     } else if (this.currentTool === 'freehand') {
       this.createFreehandPath(x, y);
     }
@@ -343,142 +357,102 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
     }
   }
 
+  lineStartPoint: any = null;
   // Add to ImageAnnotatorComponent class
-  createLine(x: number, y: number) {
+  createLine(x: number, y: number): SVGLineElement {
     this.clearExistingTempShapes();
 
-    const existingTemp = this.viewerContainer.nativeElement.querySelector('.line.temp');
-    if (existingTemp) {
-      existingTemp.remove();
-    }
+    const svg = this.viewerContainer.nativeElement.querySelector('.annotation-svg-layer');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 
-    const line = document.createElement('div');
-    line.className = 'annotation line temp';
-    line.style.position = 'absolute';
-    line.style.left = '0';
-    line.style.top = '0';
-    line.style.width = '0';
-    line.style.height = this.strokeWidth + 'px';
-    line.style.backgroundColor = this.color;
-    line.style.transformOrigin = '0 0';
-    line.style.pointerEvents = 'none';
+    // Store in viewport coordinates
+    this.lineStartPoint = new OpenSeadragon.Point(x, y);
 
-    this.annotationLayer.nativeElement.appendChild(line);
+    line.setAttribute('class', 'annotation line temp');
+    line.setAttribute('stroke', this.color);
+    line.setAttribute('stroke-width', this.strokeWidth.toString());
+    line.setAttribute('vector-effect', 'non-scaling-stroke');
+    line.setAttribute('x1', x.toString());
+    line.setAttribute('y1', y.toString());
+    line.setAttribute('x2', x.toString());
+    line.setAttribute('y2', y.toString());
+
+    svg.appendChild(line);
     return line;
   }
 
   updateLine(x: number, y: number) {
-    const constrainedEnd = this.constrainToImage(x, y);
-    const constrainedStart = this.constrainToImage(this.startX, this.startY);
-
-    let line = this.annotationLayer.nativeElement.querySelector('.line.temp') as HTMLDivElement;
+    const line = this.viewerContainer.nativeElement.querySelector('.line.temp') as SVGLineElement;
     if (!line) return;
 
-    const zoom = this.viewer.viewport.getZoom();
-    const startXPx = constrainedStart.x * zoom;
-    const startYPx = constrainedStart.y * zoom;
-    const endXPx = constrainedEnd.x * zoom;
-    const endYPx = constrainedEnd.y * zoom;
-
-    const dx = endXPx - startXPx;
-    const dy = endYPx - startYPx;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx);
-
-    line.style.width = length + 'px';
-    line.style.transform = `translate(${startXPx}px, ${startYPx}px) rotate(${angle}rad)`;
+    // Update end point in viewport coordinates
+    line.setAttribute('x2', x.toString());
+    line.setAttribute('y2', y.toString());
   }
 
   finalizeLine() {
-    const line = this.annotationLayer.nativeElement.querySelector('.line.temp') as HTMLElement;
+    const line = this.viewerContainer.nativeElement.querySelector('.line.temp') as SVGLineElement;
     if (!line) return;
 
     line.classList.remove('temp');
 
-    // Get the line coordinates from the DOM element
-    const transform = line.style.transform;
-    const translateMatch = transform.match(/translate\(([^)]+)\)/);
-    const rotateMatch = transform.match(/rotate\(([^)]+)\)/);
+    // Convert to image coordinates for storage
+    const startViewport = new OpenSeadragon.Point(
+      parseFloat(line.getAttribute('x1')!),
+      parseFloat(line.getAttribute('y1')!)
+    );
+    const endViewport = new OpenSeadragon.Point(
+      parseFloat(line.getAttribute('x2')!),
+      parseFloat(line.getAttribute('y2')!)
+    );
 
-    let startX = 0;
-    let startY = 0;
-    let endX = 0;
-    let endY = 0;
+    const startImage = this.viewer.viewport.viewportToImageCoordinates(
+      this.viewer.viewport.windowToViewportCoordinates(startViewport)
+    );
+    const endImage = this.viewer.viewport.viewportToImageCoordinates(
+      this.viewer.viewport.windowToViewportCoordinates(endViewport)
+    );
 
-    if (translateMatch && rotateMatch) {
-      const [tx, ty] = translateMatch[1].split(',').map(parseFloat);
-      const angle = parseFloat(rotateMatch[1]);
-      const length = parseFloat(line.style.width);
-
-      startX = tx;
-      startY = ty;
-      endX = tx + Math.cos(angle) * length;
-      endY = ty + Math.sin(angle) * length;
-    }
-
-    // Create annotation object with all needed data
     const annotation = {
       element: line,
       type: 'line',
+      startX: startImage.x,
+      startY: startImage.y,
+      endX: endImage.x,
+      endY: endImage.y,
       color: this.color,
       strokeWidth: this.strokeWidth,
-      id: 'line-' + Date.now(), // Unique ID
-      startX,
-      startY,
-      endX,
-      endY,
-      points: [{ x: startX, y: startY }, { x: endX, y: endY }]
+      id: 'line-' + Date.now()
     };
 
     this.annotations.push(annotation);
-
-    // Trigger the annotation input popup
     this.completeDrawing(annotation);
   }
 
   // Add to ImageAnnotatorComponent class
-  createFreehandPath(x: number, y: number) {
+  createFreehandPath(x: number, y: number): SVGPathElement {
     this.clearExistingTempShapes();
 
-    const existingTemp = this.viewerContainer.nativeElement.querySelector('.freehand.temp');
-    if (existingTemp) {
-      existingTemp.remove();
-    }
-    const path = document.createElement('div');
-    path.className = 'annotation freehand';
-    path.innerHTML = `
-      <svg width="100%" height="100%" style="position:absolute;top:0;left:0">
-        <path fill="none" stroke="${this.color}" stroke-width="${this.strokeWidth}" />
-      </svg>
-    `;
-    path.dataset['type'] = 'freehand';
-    path.dataset['points'] = JSON.stringify([{ x, y }]);
+    const svg = this.viewerContainer.nativeElement.querySelector('.annotation-svg-layer');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 
-    this.viewerContainer.nativeElement.appendChild(path);
+    path.setAttribute('class', 'annotation freehand temp');
+    path.setAttribute('stroke', this.color);
+    path.setAttribute('stroke-width', this.strokeWidth.toString());
+    path.setAttribute('fill', 'none');
+    path.setAttribute('vector-effect', 'non-scaling-stroke');
+    path.setAttribute('d', `M ${x} ${y}`);
+
+    svg.appendChild(path);
     return path;
   }
 
   updateFreehand(x: number, y: number) {
-    const constrainedPoint = this.constrainToImage(x, y);
+    const path = this.viewerContainer.nativeElement.querySelector('.freehand.temp') as SVGPathElement;
+    if (!path) return;
 
-    let path = this.viewerContainer.nativeElement.querySelector('.annotation.temp') as HTMLDivElement;
-    if (!path) {
-      path = this.createFreehandPath(this.startX, this.startY);
-      path.classList.add('temp');
-    }
-
-    const points = JSON.parse(path.dataset['points'] || '[]');
-    points.push(constrainedPoint);
-    path.dataset['points'] = JSON.stringify(points);
-
-    const svgPath = path.querySelector('path') as SVGPathElement;
-    if (svgPath && points.length > 0) {
-      let d = 'M ' + points[0].x + ' ' + points[0].y;
-      for (let i = 1; i < points.length; i++) {
-        d += ' L ' + points[i].x + ' ' + points[i].y;
-      }
-      svgPath.setAttribute('d', d);
-    }
+    const currentD = path.getAttribute('d') || '';
+    path.setAttribute('d', `${currentD} L ${x} ${y}`);
   }
 
   finalizeFreehand() {
@@ -515,24 +489,23 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
   }
 
   // Shape creation methods
-  createRectangle() {
+  createRectangle(): SVGRectElement {
     this.clearExistingTempShapes();
 
-    const existingTemp = this.viewerContainer.nativeElement.querySelector('.rectangle.temp');
-    if (existingTemp) {
-      existingTemp.remove();
-    }
-    const rect = document.createElement('div');
-    rect.className = 'annotation rectangle temp';
-    rect.style.position = 'absolute';
-    rect.style.border = `${this.strokeWidth}px solid ${this.color}`;
-    rect.style.pointerEvents = 'none';
-    rect.style.left = `${this.startX}px`;
-    rect.style.top = `${this.startY}px`;
-    rect.style.width = '0px';
-    rect.style.height = '0px';
+    const svg = this.viewerContainer.nativeElement.querySelector('.annotation-svg-layer');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
 
-    this.viewerContainer.nativeElement.appendChild(rect);
+    rect.setAttribute('class', 'annotation rectangle temp');
+    rect.setAttribute('stroke', this.color);
+    rect.setAttribute('stroke-width', this.strokeWidth.toString());
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('x', this.startX.toString());
+    rect.setAttribute('y', this.startY.toString());
+    rect.setAttribute('width', '0');
+    rect.setAttribute('height', '0');
+    rect.setAttribute('vector-effect', 'non-scaling-stroke');
+
+    svg.appendChild(rect);
     return rect;
   }
 
@@ -543,15 +516,13 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
     const width = constrainedEnd.x - constrainedStart.x;
     const height = constrainedEnd.y - constrainedStart.y;
 
-    let rect = this.viewerContainer.nativeElement.querySelector('.rectangle.temp') as HTMLDivElement;
-    if (!rect) {
-      rect = this.createRectangle();
-    }
+    const rect = this.viewerContainer.nativeElement.querySelector('.rectangle.temp') as SVGRectElement;
+    if (!rect) return;
 
-    rect.style.width = `${Math.abs(width)}px`;
-    rect.style.height = `${Math.abs(height)}px`;
-    rect.style.left = `${width > 0 ? constrainedStart.x : constrainedEnd.x}px`;
-    rect.style.top = `${height > 0 ? constrainedStart.y : constrainedEnd.y}px`;
+    rect.setAttribute('width', Math.abs(width).toString());
+    rect.setAttribute('height', Math.abs(height).toString());
+    rect.setAttribute('x', (width > 0 ? constrainedStart.x : constrainedEnd.x).toString());
+    rect.setAttribute('y', (height > 0 ? constrainedStart.y : constrainedEnd.y).toString());
   }
 
   finalizeRectangle() {
@@ -575,85 +546,76 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
     this.completeDrawing(annotation); // Add this line
   }
 
+  circleStartPoint: any;
+
   // Add to ImageAnnotatorComponent class
-  createCircle() {
+  createCircle(x: number, y: number): SVGCircleElement {
     this.clearExistingTempShapes();
 
-    const existingTemp = this.viewerContainer.nativeElement.querySelector('.circle.temp');
-    if (existingTemp) {
-      existingTemp.remove();
-    }
-    const circle = document.createElement('div');
-    circle.className = 'annotation circle temp';
-    circle.style.position = 'absolute';
-    circle.style.border = `${this.strokeWidth}px solid ${this.color}`;
-    circle.style.borderRadius = '50%';
-    circle.style.pointerEvents = 'none';
-    circle.style.left = `${this.startX}px`;
-    circle.style.top = `${this.startY}px`;
-    circle.style.width = '0px';
-    circle.style.height = '0px';
+    const svg = this.viewerContainer.nativeElement.querySelector('.annotation-svg-layer');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 
-    this.viewerContainer.nativeElement.appendChild(circle);
+    // Store in viewport coordinates during drawing
+    this.circleStartPoint = new OpenSeadragon.Point(x, y);
+
+    circle.setAttribute('class', 'annotation circle temp');
+    circle.setAttribute('stroke', this.color);
+    circle.setAttribute('stroke-width', this.strokeWidth.toString());
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('cx', x.toString());
+    circle.setAttribute('cy', y.toString());
+    circle.setAttribute('r', '1'); // Start with small radius
+    circle.setAttribute('vector-effect', 'non-scaling-stroke');
+
+    svg.appendChild(circle);
     return circle;
   }
 
   updateCircle(x: number, y: number) {
-    const constrainedEnd = this.constrainToImage(x, y);
-    const constrainedStart = this.constrainToImage(this.startX, this.startY);
+    const circle = this.viewerContainer.nativeElement.querySelector('.circle.temp') as SVGCircleElement;
+    if (!circle) return;
 
-    const dx = constrainedEnd.x - constrainedStart.x;
-    const dy = constrainedEnd.y - constrainedStart.y;
-    const distance = Math.min(
-      Math.sqrt(dx * dx + dy * dy),
-      Math.min(
-        Math.min(constrainedStart.x, this.getImageBounds().width - constrainedStart.x),
-        Math.min(constrainedStart.y, this.getImageBounds().height - constrainedStart.y)
-      )
+    // Calculate radius in viewport coordinates
+    const radius = Math.sqrt(
+      Math.pow(x - this.circleStartPoint.x, 2) +
+      Math.pow(y - this.circleStartPoint.y, 2)
     );
 
-    let circle = this.viewerContainer.nativeElement.querySelector('.circle.temp') as HTMLDivElement;
-    if (!circle) {
-      circle = this.createCircle();
-    }
-
-    circle.style.width = `${distance * 2}px`;
-    circle.style.height = `${distance * 2}px`;
-    circle.style.left = `${constrainedStart.x - distance}px`;
-    circle.style.top = `${constrainedStart.y - distance}px`;
+    // Update only the radius
+    circle.setAttribute('r', radius.toString());
   }
 
   finalizeCircle() {
-    const circle = this.viewerContainer.nativeElement.querySelector('.circle.temp') as HTMLDivElement;
+    const circle = this.viewerContainer.nativeElement.querySelector('.circle.temp') as SVGCircleElement;
     if (!circle) return;
 
     circle.classList.remove('temp');
 
-    // Parse with error handling
-    const left = parseFloat(circle.style.left.replace('px', '')) || 0;
-    const top = parseFloat(circle.style.top.replace('px', '')) || 0;
-    const width = parseFloat(circle.style.width.replace('px', '')) || 0;
+    // Convert to image coordinates for storage
+    const viewportCenter = new OpenSeadragon.Point(
+      parseFloat(circle.getAttribute('cx')!),
+      parseFloat(circle.getAttribute('cy')!)
+    );
+    const imageCenter = this.viewer.viewport.viewportToImageCoordinates(
+      this.viewer.viewport.windowToViewportCoordinates(viewportCenter)
+    );
+
+    const radius = parseFloat(circle.getAttribute('r')!) / this.viewer.viewport.getZoom();
 
     const annotation = {
       element: circle,
       type: 'circle',
-      x: left,
-      y: top,
-      radius: width / 2,
+      cx: imageCenter.x,
+      cy: imageCenter.y,
+      radius: radius,
       color: this.color,
       strokeWidth: this.strokeWidth,
-      id: 'circle-' + Date.now(),
-      // Add these for consistency with other shapes
-      points: [
-        { x: left, y: top },
-        { x: left + width, y: top + width }
-      ]
+      id: 'circle-' + Date.now()
     };
 
     this.annotations.push(annotation);
     this.completeDrawing(annotation);
   }
-
 
 
   // Similar methods for circle, line, and freehand would be implemented
@@ -804,6 +766,7 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
     if (this.currentAnnotation.action === 'add') {
       this.deleteAnnotation();
     }
+    this.cdr.detectChanges();
   }
 
   deleteAnnotation() {
@@ -816,7 +779,6 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
   }
 
   completeDrawing(shape: any) {
-    console.log('Complete drawing called with:', shape);
 
     this.shape = shape;
     this.annotationBoxVisibility = true;
@@ -827,10 +789,14 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
       text: '',
       action: 'add'
     };
+    this.currentTool = 'hand'
+    console.log('Complete drawing called with:', shape);
+
     this.cdr.detectChanges(); // Ensure ChangeDetection runs
   }
 
   handleDrawingComplete(shape: any) {
+
     this.shape = shape;
     this.annotationBoxVisibility = true;
     this.currentAnnotation = {
@@ -842,25 +808,77 @@ export class ImageAnnotatorComponent implements AfterViewInit, OnInit, OnDestroy
 
   clearExistingTempShapes() {
     // Remove all temporary shapes from DOM
-    const tempShapes = this.viewerContainer.nativeElement.querySelectorAll('.annotation.temp');
+    const tempShapes = this.viewerContainer.nativeElement.querySelectorAll('.annotation');
     tempShapes.forEach((shape: any) => shape.remove());
 
     // Remove from annotations array if they were partially added
-    this.annotations = this.annotations.filter(anno => !anno.element.classList.contains('temp'));
+    // this.annotations = this.annotations.filter(anno => !anno.element.classList.contains('temp'));
+    this.annotations = []
+    this.shape = []
     console.log('Cleared existing temporary shapes', this.annotations);
   }
 
 
-  private setupSVGLayer() {
+  private createSVGElement(type: string, attributes: { [key: string]: string }) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const element = document.createElementNS(svgNS, type);
+    for (const key in attributes) {
+      if (attributes.hasOwnProperty(key)) {
+        element.setAttribute(key, attributes[key]);
+      }
+    }
+    return element;
+  }
+
+  setupSVGLayer() {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'annotation-svg-layer');
     svg.style.position = 'absolute';
     svg.style.top = '0';
     svg.style.left = '0';
     svg.style.width = '100%';
     svg.style.height = '100%';
     svg.style.pointerEvents = 'none';
-    svg.setAttribute('class', 'annotation-svg-layer');
     this.viewerContainer.nativeElement.appendChild(svg);
+  }
+
+
+  isWithinImageBounds(x: number, y: number): boolean {
+    const bounds = this.viewer.viewport.getBounds();
+    const imageBounds = this.viewer.viewport.viewportToImageRectangle(bounds);
+
+    return x >= 0 &&
+      x <= imageBounds.width &&
+      y >= 0 &&
+      y <= imageBounds.height;
+  }
+
+  private handleDocumentClick = (event: MouseEvent) => {
+    if (!this.annotationBoxVisibility) return;
+
+    const popup = document.querySelector('#annotation-popup');
+    const target = event.target as HTMLElement;
+
+    // Check if click is outside popup
+    if (popup && !popup.contains(target)) {
+      this.cancelAnnotation();
+    }
+  }
+
+  clearExistingShapes() {
+    // Remove all shapes from DOM
+    const shapes = this.viewerContainer.nativeElement.querySelectorAll('.annotation:not(.temp)');
+    shapes.forEach((shape: Element) => shape.remove());
+
+    // Clear from annotations array
+    this.annotations = [];
+
+    // Clear from OpenSeadragon if using its annotation system
+    if (this.viewer?.annotations) {
+      this.viewer.annotations.set([]);
+    }
+
+    console.log('Cleared all existing shapes');
   }
 
 }
